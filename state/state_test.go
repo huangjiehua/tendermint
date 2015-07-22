@@ -233,11 +233,8 @@ func TestNewAccountTxs(t *testing.T) {
 	difficulty[0] = 0
 	difficulty[1] = 0
 	balance := int64(1000)
-	newAccountInfo := types.NewAccountTxInfo{difficulty, balance}
-	n, errr := new(int64), new(error)
-	w := new(bytes.Buffer)
-	binary.WriteJSON(newAccountInfo, w, n, errr)
-	state.UpdateNameRegEntry(&types.NameRegEntry{Expires: int(1) << 62, Name: types.NewAccountTxInfoName, Data: string(w.Bytes())})
+	newAccountParams := &types.NewAccountTxParams{difficulty, balance}
+	state.params.NewAccountTx = newAccountParams
 
 	tx, err := types.NewNewAccountTx(state, privAccount.PubKey, state.ChainID)
 	if err != nil {

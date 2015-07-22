@@ -899,19 +899,18 @@ func ExecTx(blockCache *BlockCache, tx types.Tx, runCall bool, evc events.Fireab
 
 		// First thing's first, grab the required difficulty
 		// and check the proof of work
-		entry := _s.GetNameRegEntry(types.NewAccountTxInfoName)
-		if entry == nil {
+		newAccParamsI, err := _s.GetParam(types.ParamsKeyNewAccountTx)
+		if err != nil || newAccParamsI == nil {
 			log.Info(types.ErrTxFeatureNotEnabled.Error(), "feature", "NewAccountTx")
 			return types.ErrTxFeatureNotEnabled
 		}
-		var newAccountInfo types.NewAccountTxInfo
-		err := new(error)
-		binary.ReadJSON(&newAccountInfo, []byte(entry.Data), err)
-		if *err != nil {
-			log.Info("Error unmarshalling entry data into NewAccountTxInfo", "error", err, "entry", entry.Data)
+		newAccountParams, ok := newAccParamsI.(*types.NewAccountTxParams)
+		if !ok || newAccountParams == nil {
+			log.Info(types.ErrTxFeatureNotEnabled.Error(), "feature", "NewAccountTx")
 			return types.ErrTxFeatureNotEnabled
 		}
-		target := newAccountInfo.PoWTarget
+
+		target := newAccountParams.PoWTarget
 		signBytes := acm.SignBytes(_s.ChainID, tx)
 		h := binary.BinaryRipemd160(signBytes)
 		if bytes.Compare(h, target) > 0 {
@@ -969,7 +968,7 @@ func ExecTx(blockCache *BlockCache, tx types.Tx, runCall bool, evc events.Fireab
 
 		// Good!
 		inAcc.Sequence += 1
-		inAcc.Balance = newAccountInfo.Balance
+		inAcc.Balance = newAccountParams.Balance
 		blockCache.UpdateAccount(inAcc)
 
 		if evc != nil {

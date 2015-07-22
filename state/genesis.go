@@ -1,7 +1,6 @@
 package state
 
 import (
-	"bytes"
 	"io/ioutil"
 	"os"
 	"time"
@@ -43,8 +42,8 @@ type GenesisValidator struct {
 }
 
 type GenesisParams struct {
-	GlobalPermissions *ptypes.AccountPermissions `json:"global_permissions"`
-	NewAccountTxInfo  *types.NewAccountTxInfo    `json:"new_account_info"`
+	GlobalPermissions  *ptypes.AccountPermissions `json:"global_permissions"`
+	NewAccountTxParams *types.NewAccountTxParams  `json:"new_account_info"`
 }
 
 type GenesisDoc struct {
@@ -157,16 +156,14 @@ func MakeGenesisState(db dbm.DB, genDoc *GenesisDoc) *State {
 	// Make namereg tree
 	nameReg := merkle.NewIAVLTree(binary.BasicCodec, NameRegCodec, 0, db)
 
-	// genesis params are stored in the name reg
+	// Make parameter list
+	params := new(types.Params)
+
+	// genesis params are stored in the params list
 	if genDoc.Params != nil {
 		// first the new account json
-		if params := genDoc.Params.NewAccountTxInfo; params != nil {
-			newAccountInfo := types.NewAccountTxInfo{params.PoWTarget, params.Balance}
-			n, err := new(int64), new(error)
-			w := new(bytes.Buffer)
-			binary.WriteJSON(newAccountInfo, w, n, err)
-			entry := &types.NameRegEntry{Name: types.NewAccountTxInfoName, Data: string(w.Bytes()), Expires: int(1) << 30}
-			nameReg.Set(entry.Name, entry)
+		if newAccParams := genDoc.Params.NewAccountTxParams; newAccParams != nil {
+			params.NewAccountTx = newAccParams
 		}
 	}
 
@@ -190,5 +187,6 @@ func MakeGenesisState(db dbm.DB, genDoc *GenesisDoc) *State {
 		accounts:             accounts,
 		validatorInfos:       validatorInfos,
 		nameReg:              nameReg,
+		params:               params,
 	}
 }

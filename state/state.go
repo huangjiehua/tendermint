@@ -22,15 +22,6 @@ var (
 	validatorTimeoutBlocks       = int(10)            // TODO adjust
 )
 
-// reserved name reg entries
-const (
-	NewAccountTxDifficulty string = "NewAccountTxDifficulty"
-)
-
-var (
-	ReservedNames = []string{NewAccountTxDifficulty}
-)
-
 //-----------------------------------------------------------------------------
 
 // NOTE: not goroutine-safe.
@@ -44,9 +35,10 @@ type State struct {
 	BondedValidators     *ValidatorSet
 	LastBondedValidators *ValidatorSet
 	UnbondingValidators  *ValidatorSet
-	accounts             merkle.Tree // Shouldn't be accessed directly.
-	validatorInfos       merkle.Tree // Shouldn't be accessed directly.
-	nameReg              merkle.Tree // Shouldn't be accessed directly.
+	accounts             merkle.Tree   // Shouldn't be accessed directly.
+	validatorInfos       merkle.Tree   // Shouldn't be accessed directly.
+	nameReg              merkle.Tree   // Shouldn't be accessed directly.
+	params               *types.Params // Shouldn't be accessed directly
 
 	evc events.Fireable // typically an events.EventCache
 }
@@ -75,6 +67,7 @@ func LoadState(db dbm.DB) *State {
 		nameRegHash := binary.ReadByteSlice(r, n, err)
 		s.nameReg = merkle.NewIAVLTree(binary.BasicCodec, NameRegCodec, 0, db)
 		s.nameReg.Load(nameRegHash)
+		s.params = binary.ReadBinary(&types.Params{}, r, n, err).(*types.Params)
 		if *err != nil {
 			// DATA HAS BEEN CORRUPTED OR THE SPEC HAS CHANGED
 			Exit(Fmt("Data has been corrupted or its spec has changed: %v\n", *err))
@@ -100,6 +93,7 @@ func (s *State) Save() {
 	binary.WriteByteSlice(s.accounts.Hash(), buf, n, err)
 	binary.WriteByteSlice(s.validatorInfos.Hash(), buf, n, err)
 	binary.WriteByteSlice(s.nameReg.Hash(), buf, n, err)
+	binary.WriteBinary(s.params, buf, n, err)
 	if *err != nil {
 		PanicCrisis(*err)
 	}
@@ -123,6 +117,7 @@ func (s *State) Copy() *State {
 		accounts:             s.accounts.Copy(),
 		validatorInfos:       s.validatorInfos.Copy(),
 		nameReg:              s.nameReg.Copy(),
+		params:               s.params.Copy(),
 		evc:                  nil,
 	}
 }
@@ -135,6 +130,7 @@ func (s *State) Hash() []byte {
 		s.accounts,
 		s.validatorInfos,
 		s.nameReg,
+		s.params,
 	}
 	return merkle.SimpleHashFromHashables(hashables)
 }
@@ -353,6 +349,14 @@ var NameRegCodec = binary.Codec{
 }
 
 // State.nameReg
+//-------------------------------------
+// State.params
+
+func (s *State) GetParam(key types.ParamsKey) (interface{}, error) {
+	return s.params.Get(key)
+}
+
+// State.params
 //-------------------------------------
 
 // Implements events.Eventable. Typically uses events.EventCache

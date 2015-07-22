@@ -14,8 +14,8 @@ type AccountGetter interface {
 	GetAccount(addr []byte) *acm.Account
 }
 
-type NameGetter interface {
-	GetNameRegEntry(name string) *NameRegEntry
+type ParamGetter interface {
+	GetParam(ParamsKey) (interface{}, error)
 }
 
 //----------------------------------------------------------------------------
@@ -271,18 +271,17 @@ func (tx *PermissionsTx) Sign(chainID string, privAccount *acm.PrivAccount) {
 // NewAccountTx interface for creating tx (and doing proof of work)
 
 // NewAccountTx needs the chainID for the proof of work
-func NewNewAccountTx(st NameGetter, from acm.PubKey, chainID string) (*NewAccountTx, error) {
-	entry := st.GetNameRegEntry(NewAccountTxInfoName)
-	if entry == nil {
-		return nil, fmt.Errorf("Chain does not support new accounts")
+func NewNewAccountTx(st ParamGetter, from acm.PubKey, chainID string) (*NewAccountTx, error) {
+	param, err := st.GetParam(ParamsKeyNewAccountTx)
+	if err != nil || param == nil {
+		return nil, ErrTxFeatureNotEnabled
 	}
-	var newAccountInfo NewAccountTxInfo
-	err := new(error)
-	binary.ReadJSON(&newAccountInfo, []byte(entry.Data), err)
-	if *err != nil {
-		return nil, fmt.Errorf("NameRegEntry at %s must be json encoded NewAccountTxInfo. Tell your chain operator to clean up their act", NewAccountTxInfoName)
+	newAccountParams, ok := param.(*NewAccountTxParams)
+	if !ok {
+		return nil, fmt.Errorf("Parameter at ParamsKeyNewAccountTx should be type NewAccountTxParams. Tell your chain operator to stop messing around!")
 	}
-	target := newAccountInfo.PoWTarget
+
+	target := newAccountParams.PoWTarget
 
 	var tx *NewAccountTx
 	nonce64 := RandInt64()

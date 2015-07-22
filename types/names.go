@@ -5,12 +5,8 @@ import (
 )
 
 // reserved name reg entries
-const (
-	NewAccountTxInfoName string = "NewAccountTxInfo"
-)
-
 var (
-	ReservedNames = []string{NewAccountTxInfoName}
+	ReservedNames = []string{}
 )
 
 var (

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/tendermint/tendermint/binary"
 	tdb "github.com/tendermint/tendermint/db"
 	ptypes "github.com/tendermint/tendermint/permission/types"
 	"github.com/tendermint/tendermint/types"
@@ -68,11 +67,11 @@ func TestGenesisReadable(t *testing.T) {
 		t.Fatalf("Incorrect chain id. Got %d, expected %d\n", genDoc.ChainID, chain_id)
 	}
 	targetB, _ := hex.DecodeString(newAccTarget)
-	if !bytes.Equal(genDoc.Params.NewAccountTxInfo.PoWTarget, targetB) {
-		t.Fatalf("Incorrect new account pow target. Got %X, expected %X", genDoc.Params.NewAccountTxInfo.PoWTarget, targetB)
+	if !bytes.Equal(genDoc.Params.NewAccountTxParams.PoWTarget, targetB) {
+		t.Fatalf("Incorrect new account pow target. Got %X, expected %X", genDoc.Params.NewAccountTxParams.PoWTarget, targetB)
 	}
-	if genDoc.Params.NewAccountTxInfo.Balance != newAccBalance {
-		t.Fatalf("Incorrect new account balance. Got %d, expected %d", genDoc.Params.NewAccountTxInfo.Balance, newAccBalance)
+	if genDoc.Params.NewAccountTxParams.Balance != newAccBalance {
+		t.Fatalf("Incorrect new account balance. Got %d, expected %d", genDoc.Params.NewAccountTxParams.Balance, newAccBalance)
 	}
 	acc := genDoc.Accounts[0]
 	if bytes.Compare(acc.Address, addr1) != 0 {
@@ -101,14 +100,16 @@ func TestGenesisMakeState(t *testing.T) {
 		t.Fatalf("Incorrect permission for send. Got %v, expected %v\n", v, send1 > 0)
 	}
 
-	entry := st.GetNameRegEntry(types.NewAccountTxInfoName)
-	var newAccountInfo types.NewAccountTxInfo
-	err := new(error)
-	binary.ReadJSON(&newAccountInfo, []byte(entry.Data), err)
-	if *err != nil {
+	newAccParamsI, err := st.GetParam(types.ParamsKeyNewAccountTx)
+	if err != nil || newAccParamsI == nil {
 		t.Fatal(err)
 	}
-	if hex.EncodeToString(newAccountInfo.PoWTarget) != newAccTarget {
-		t.Fatalf("Incorrect new account pow target stored in name reg. Got %X, expected %s", newAccountInfo.PoWTarget, newAccTarget)
+
+	newAccParams, ok := newAccParamsI.(*types.NewAccountTxParams)
+	if !ok {
+		t.Fatalf("ParamsKeyNewAccountTx.Value is not type NewAccountTxParams")
+	}
+	if hex.EncodeToString(newAccParams.PoWTarget) != newAccTarget {
+		t.Fatalf("Incorrect new account pow target stored in name reg. Got %X, expected %s", newAccParams.PoWTarget, newAccTarget)
 	}
 }
