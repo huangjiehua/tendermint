@@ -56,9 +56,14 @@ func Uint64FromWord256(word Word256) uint64 {
 	return GetUint64BE(buf)
 }
 
-func Int64FromWord256(word Word256) int64 {
+// Gauranteed to return a positive integer
+func Int64PositiveFromWord256(word Word256) int64 {
 	buf := word.Postfix(8)
-	return GetInt64BE(buf)
+	i := GetInt64BE(buf)
+	if i < 0 {
+		i *= -1
+	}
+	return i
 }
 
 //-------------------------------------

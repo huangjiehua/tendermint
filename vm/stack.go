@@ -75,7 +75,7 @@ func (st *Stack) PopBytes() []byte {
 
 func (st *Stack) Pop64() int64 {
 	d := st.Pop()
-	return Int64FromWord256(d)
+	return Int64PositiveFromWord256(d) // for safety so we don't get negatives!
 }
 
 func (st *Stack) Len() int {
