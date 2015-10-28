@@ -157,14 +157,14 @@ import (
 	"sync"
 	"time"
 
+	. "github.com/tendermint/go-common"
+	"github.com/tendermint/go-wire"
 	acm "github.com/tendermint/tendermint/account"
 	bc "github.com/tendermint/tendermint/blockchain"
-	. "github.com/tendermint/go-common"
 	"github.com/tendermint/tendermint/events"
 	mempl "github.com/tendermint/tendermint/mempool"
 	sm "github.com/tendermint/tendermint/state"
 	"github.com/tendermint/tendermint/types"
-	"github.com/tendermint/go-wire"
 )
 
 var (
@@ -317,13 +317,16 @@ type ConsensusState struct {
 
 	evsw events.Fireable
 	evc  *events.EventCache // set in stageBlock and passed into state
+
+	decideProposalFunc func(cs *ConsensusState, height int, round int)
 }
 
 func NewConsensusState(state *sm.State, blockStore *bc.BlockStore, mempoolReactor *mempl.MempoolReactor) *ConsensusState {
 	cs := &ConsensusState{
-		blockStore:     blockStore,
-		mempoolReactor: mempoolReactor,
-		newStepCh:      make(chan *RoundState, 10),
+		blockStore:         blockStore,
+		mempoolReactor:     mempoolReactor,
+		newStepCh:          make(chan *RoundState, 10),
+		decideProposalFunc: decideProposal,
 	}
 	cs.updateToState(state)
 	// Don't call scheduleRound0 yet.
@@ -332,6 +335,10 @@ func NewConsensusState(state *sm.State, blockStore *bc.BlockStore, mempoolReacto
 	cs.reconstructLastCommit(state)
 	cs.BaseService = *NewBaseService(log, "ConsensusState", cs)
 	return cs
+}
+
+func (cs *ConsensusState) SetDecideProposalFunc(f func(cs *ConsensusState, height int, round int)) {
+	cs.decideProposalFunc = f
 }
 
 // Reconstruct LastCommit from SeenValidation, which we saved along with the block,
@@ -594,8 +601,12 @@ func (cs *ConsensusState) EnterPropose(height int, round int) {
 	}
 }
 
+func (cs *ConsensusState) decideProposal(height, round int) {
+	cs.decideProposalFunc(cs, height, round)
+}
+
 // Decides on the next proposal and sets them onto cs.Proposal*
-func (cs *ConsensusState) decideProposal(height int, round int) {
+func decideProposal(cs *ConsensusState, height, round int) {
 	var block *types.Block
 	var blockParts *types.PartSet
 

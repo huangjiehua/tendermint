@@ -6,17 +6,47 @@ import (
 	"testing"
 	"time"
 
-	bc "github.com/tendermint/tendermint/blockchain"
 	dbm "github.com/tendermint/go-db"
+	"github.com/tendermint/go-p2p"
+	bc "github.com/tendermint/tendermint/blockchain"
 	"github.com/tendermint/tendermint/events"
 	mempl "github.com/tendermint/tendermint/mempool"
-	"github.com/tendermint/go-p2p"
 	sm "github.com/tendermint/tendermint/state"
 	"github.com/tendermint/tendermint/types"
 )
 
 //-------------------------------------------------------------------------------
 // utils
+
+func nilProposal(cs *ConsensusState, height, round int) {
+	// Make proposal
+	proposal := types.NewProposal(height, round, types.PartSetHeader{}, -1)
+	err := cs.privValidator.SignProposal(cs.state.ChainID, proposal)
+	if err == nil {
+		log.Notice("Signed and set proposal", "height", height, "round", round, "proposal", proposal)
+		// Set fields
+		cs.Proposal = proposal
+		cs.ProposalBlock = nil
+		cs.ProposalBlockParts = nil
+	} else {
+		log.Warn("EnterPropose: Error signing proposal", "height", height, "round", round, "error", err)
+	}
+}
+
+func nilRound(t *testing.T, startRound int, cs1 *ConsensusState, css ...*ConsensusState) {
+	round := cs1.Round
+	if round == startRound {
+		_, _ = <-cs1.NewStepCh(), <-cs1.NewStepCh()
+	}
+	signAddVoteToFromMany(types.VoteTypePrevote, cs1, nil, cs1.ProposalBlockParts.Header(), css...)
+	<-cs1.NewStepCh() // prevotes
+	signAddVoteToFromMany(types.VoteTypePrecommit, cs1, nil, cs1.ProposalBlockParts.Header(), css...)
+	<-cs1.NewStepCh() //
+	<-cs1.NewStepCh() // go to next round
+	if cs1.Round != round+1 {
+		t.Fatal("Expected round to increment. Got", cs1.Round)
+	}
+}
 
 func changeProposer(t *testing.T, perspectiveOf, newProposer *ConsensusState) *types.Block {
 	_, v1 := perspectiveOf.Validators.GetByAddress(perspectiveOf.privValidator.Address)
@@ -62,7 +92,7 @@ func addVoteToFrom(to, from *ConsensusState, vote *types.Vote) {
 	if _, ok := err.(*types.ErrVoteConflictingSignature); ok {
 		// let it fly
 	} else if !added {
-		panic("Failed to add vote")
+		panic(fmt.Sprintln("Failed to add vote. Err:", err))
 	} else if err != nil {
 		panic(fmt.Sprintln("Failed to add vote:", err))
 	}
